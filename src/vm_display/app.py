@@ -7,16 +7,14 @@ import sys
 import gi
 
 gi.require_version("Gtk", "3.0")
-gi.require_version("Gdk", "3.0")
 gi.require_version("SpiceClientGtk", "3.0")
 gi.require_version("SpiceClientGLib", "2.0")
 
-from gi.repository import Gdk, GLib, Gtk, SpiceClientGLib, SpiceClientGtk
+from gi.repository import GLib, Gtk, SpiceClientGLib, SpiceClientGtk
 
 
 DEFAULT_TITLE = "vm-display"
 DEFAULT_URI = "spice://127.0.0.1:5930"
-TOGGLE_ACCEL = "Control_L+Shift_L+space"
 DEBUG = os.environ.get("VM_DISPLAY_DEBUG", "") not in ("", "0", "false", "False")
 
 
@@ -32,8 +30,6 @@ class VMDisplayWindow(Gtk.Window):
         self.set_position(Gtk.WindowPosition.CENTER)
         self.set_decorated(False)
         self.connect("destroy", self._on_destroy)
-        self.connect("key-press-event", self._on_window_key_press)
-        self.connect("map-event", self._on_map_event)
 
         self.uri = uri
         self.session = SpiceClientGLib.Session.new()
@@ -41,7 +37,6 @@ class VMDisplayWindow(Gtk.Window):
         self.session.connect_after("channel-new", self._on_channel_new)
 
         self.display: SpiceClientGtk.Display | None = None
-        self.captured = False
         self.connected_channels: dict[int, SpiceClientGLib.Channel] = {}
 
         self.display_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -59,49 +54,13 @@ class VMDisplayWindow(Gtk.Window):
         debug("initial_present")
         try:
             self.present()
-            self.fullscreen()
             self.show_all()
         except Exception as exc:
             debug(f"initial_present exception: {exc!r}")
         return False
 
-    def _on_map_event(self, *_args) -> bool:
-        debug("map-event")
-        return False
-
     def status(self, text: str) -> None:
         debug(f"status: {text}")
-
-    def set_capture_state(self, captured: bool) -> None:
-        self.captured = captured
-        if self.display is not None:
-            self.display.set_property("grab-keyboard", captured)
-            self.display.set_property("grab-mouse", captured)
-            if captured:
-                self.display.grab_focus()
-            else:
-                try:
-                    self.display.keyboard_ungrab()
-                except Exception:
-                    pass
-                try:
-                    self.display.mouse_ungrab()
-                except Exception:
-                    pass
-
-    def release_input(self) -> None:
-        self.set_capture_state(False)
-        self.status("Released guest input")
-
-    def capture_input(self) -> None:
-        self.set_capture_state(True)
-        self.status("Captured guest input")
-
-    def toggle_input(self) -> None:
-        if self.captured:
-            self.release_input()
-        else:
-            self.capture_input()
 
     def _install_display(self, channel_id: int) -> None:
         if self.display is not None:
@@ -111,21 +70,17 @@ class VMDisplayWindow(Gtk.Window):
         display = SpiceClientGtk.Display.new(self.session, channel_id)
         display.set_hexpand(True)
         display.set_vexpand(True)
+        display.set_can_focus(True)
         display.set_property("resize-guest", True)
         display.set_property("scaling", True)
         display.set_property("grab-keyboard", False)
         display.set_property("grab-mouse", False)
-        display.set_grab_keys(SpiceClientGtk.GrabSequence.new_from_string(TOGGLE_ACCEL))
         display.connect("button-press-event", self._on_display_button_press)
-        display.connect("grab-broken-event", self._on_grab_broken)
-        display.connect("grab-notify", self._on_grab_notify)
-        display.connect("key-press-event", self._on_display_key_press)
 
         self.display = display
         self.display_box.pack_start(display, True, True, 0)
         self.display_box.show_all()
-        self.set_capture_state(False)
-        self.status("Display ready. Ctrl+Shift+Space toggles guest input.")
+        self.status("Display ready.")
 
     def _on_channel_new(self, _session, channel) -> None:
         channel_id = channel.get_property("channel-id")
@@ -153,46 +108,9 @@ class VMDisplayWindow(Gtk.Window):
             connected = "?"
         self.status(f"Agent connected: {connected}")
 
-    def _on_display_button_press(self, _widget, _event) -> bool:
-        if not self.captured:
-            self.capture_input()
+    def _on_display_button_press(self, widget, _event) -> bool:
+        widget.grab_focus()
         return False
-
-    def _on_grab_broken(self, *_args) -> bool:
-        self.set_capture_state(False)
-        self.status("Grab broken; back to host input")
-        return False
-
-    def _on_grab_notify(self, widget, was_grabbed) -> None:
-        has_grab = False
-        try:
-            has_grab = bool(widget.has_grab())
-        except Exception:
-            pass
-        if not has_grab and self.captured:
-            self.set_capture_state(False)
-            self.status("Grab notify: host input")
-
-    def _on_display_key_press(self, _widget, event: Gdk.EventKey) -> bool:
-        if self._is_toggle_accel(event):
-            self.toggle_input()
-            return True
-        return False
-
-    def _on_window_key_press(self, _widget, event: Gdk.EventKey) -> bool:
-        if self._is_toggle_accel(event):
-            self.toggle_input()
-            return True
-        if event.keyval == Gdk.KEY_Escape and not self.captured:
-            self.close()
-            return True
-        return False
-
-    def _is_toggle_accel(self, event: Gdk.EventKey) -> bool:
-        ctrl = bool(event.state & Gdk.ModifierType.CONTROL_MASK)
-        shift = bool(event.state & Gdk.ModifierType.SHIFT_MASK)
-        alt = bool(event.state & Gdk.ModifierType.MOD1_MASK)
-        return ctrl and shift and not alt and event.keyval == Gdk.KEY_space
 
     def _on_destroy(self, *_args) -> None:
         debug("destroy")
