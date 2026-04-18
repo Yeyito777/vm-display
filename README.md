@@ -22,6 +22,14 @@ Current behavior:
 
 ## Run
 
+Normal day-to-day Windows VM usage is through vm-cli:
+
+```bash
+vm start windows
+```
+
+Standalone viewer only:
+
 ```bash
 python -m vm_display --uri spice://127.0.0.1:5930
 ```
@@ -32,8 +40,10 @@ Or:
 ./scripts/run-local-windows.sh
 ```
 
-For the Windows VM helper launcher:
+For local vm-display development against the Windows VM profile:
 
 ```bash
 ./scripts/launch-windows.sh
 ```
+
+That helper now starts or reuses a headless `vm` session and then attaches `vm-display` directly.
