@@ -15,11 +15,10 @@ Current MVP stack:
 
 Current behavior:
 - connect to a SPICE URI
-- show one display window
+- open as a fullscreen, undecorated display window
 - no automatic keyboard/mouse grab on mere focus/hover
 - explicit click-to-capture
 - `Ctrl+Shift+Space` toggles guest input
-- `Release` button returns input to host
 
 ## Run
 

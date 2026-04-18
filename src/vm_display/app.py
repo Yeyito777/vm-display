@@ -30,6 +30,7 @@ class VMDisplayWindow(Gtk.Window):
         super().__init__(title=title)
         self.set_default_size(1600, 900)
         self.set_position(Gtk.WindowPosition.CENTER)
+        self.set_decorated(False)
         self.connect("destroy", self._on_destroy)
         self.connect("key-press-event", self._on_window_key_press)
         self.connect("map-event", self._on_map_event)
@@ -43,31 +44,10 @@ class VMDisplayWindow(Gtk.Window):
         self.captured = False
         self.connected_channels: dict[int, SpiceClientGLib.Channel] = {}
 
-        self.header = Gtk.HeaderBar()
-        self.header.set_show_close_button(True)
-        self.header.props.title = title
-        self.header.props.subtitle = uri
-        self.set_titlebar(self.header)
-
-        self.capture_label = Gtk.Label(label="HOST")
-        self.header.pack_start(self.capture_label)
-
-        self.release_button = Gtk.Button(label="Release")
-        self.release_button.connect("clicked", lambda *_: self.release_input())
-        self.header.pack_end(self.release_button)
-
-        self.status_label = Gtk.Label(label="Connecting…")
-        self.status_label.set_xalign(0.0)
-
-        self.root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        self.add(self.root)
-
         self.display_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.display_box.set_hexpand(True)
         self.display_box.set_vexpand(True)
-
-        self.root.pack_start(self.display_box, True, True, 0)
-        self.root.pack_end(self.status_label, False, False, 6)
+        self.add(self.display_box)
 
         self.show_all()
         GLib.idle_add(self._initial_present)
@@ -78,8 +58,8 @@ class VMDisplayWindow(Gtk.Window):
     def _initial_present(self) -> bool:
         debug("initial_present")
         try:
-            self.move(80, 80)
             self.present()
+            self.fullscreen()
             self.show_all()
         except Exception as exc:
             debug(f"initial_present exception: {exc!r}")
@@ -91,11 +71,9 @@ class VMDisplayWindow(Gtk.Window):
 
     def status(self, text: str) -> None:
         debug(f"status: {text}")
-        self.status_label.set_text(text)
 
     def set_capture_state(self, captured: bool) -> None:
         self.captured = captured
-        self.capture_label.set_text("GUEST" if captured else "HOST")
         if self.display is not None:
             self.display.set_property("grab-keyboard", captured)
             self.display.set_property("grab-mouse", captured)
@@ -147,7 +125,7 @@ class VMDisplayWindow(Gtk.Window):
         self.display_box.pack_start(display, True, True, 0)
         self.display_box.show_all()
         self.set_capture_state(False)
-        self.status("Display ready. Click inside to capture. Ctrl+Shift+Space toggles guest input.")
+        self.status("Display ready. Ctrl+Shift+Space toggles guest input.")
 
     def _on_channel_new(self, _session, channel) -> None:
         channel_id = channel.get_property("channel-id")
