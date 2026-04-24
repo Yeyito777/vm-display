@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 import os
 import sys
 
@@ -20,7 +21,8 @@ DEBUG = os.environ.get("VM_DISPLAY_DEBUG", "") not in ("", "0", "false", "False"
 
 def debug(msg: str) -> None:
     if DEBUG:
-        print(f"[vm-display] {msg}", file=sys.stderr, flush=True)
+        ts = datetime.now().isoformat(timespec="seconds")
+        print(f"[vm-display {ts}] {msg}", file=sys.stderr, flush=True)
 
 
 class VMDisplayWindow(Gtk.Window):
@@ -79,6 +81,11 @@ class VMDisplayWindow(Gtk.Window):
 
         self.display = display
         self.display_box.pack_start(display, True, True, 0)
+        display.connect("focus-in-event", lambda *_args: debug("display focus-in") or False)
+        display.connect("focus-out-event", lambda *_args: debug("display focus-out") or False)
+        display.connect("key-press-event", self._on_display_key_press)
+        display.connect("key-release-event", self._on_display_key_release)
+
         self.display_box.show_all()
         self.status("Display ready.")
 
@@ -108,8 +115,17 @@ class VMDisplayWindow(Gtk.Window):
             connected = "?"
         self.status(f"Agent connected: {connected}")
 
-    def _on_display_button_press(self, widget, _event) -> bool:
+    def _on_display_button_press(self, widget, event) -> bool:
+        debug(f"button-press button={getattr(event, 'button', '?')} x={getattr(event, 'x', '?')} y={getattr(event, 'y', '?')}")
         widget.grab_focus()
+        return False
+
+    def _on_display_key_press(self, _widget, event) -> bool:
+        debug(f"key-press keyval={getattr(event, 'keyval', '?')} hardware_keycode={getattr(event, 'hardware_keycode', '?')} state={getattr(event, 'state', '?')}")
+        return False
+
+    def _on_display_key_release(self, _widget, event) -> bool:
+        debug(f"key-release keyval={getattr(event, 'keyval', '?')} hardware_keycode={getattr(event, 'hardware_keycode', '?')} state={getattr(event, 'state', '?')}")
         return False
 
     def _on_destroy(self, *_args) -> None:
