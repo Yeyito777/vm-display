@@ -32,6 +32,8 @@ class VMDisplayWindow(Gtk.Window):
         self.set_position(Gtk.WindowPosition.CENTER)
         self.set_decorated(False)
         self.connect("destroy", self._on_destroy)
+        self.connect("focus-in-event", self._on_window_focus_in)
+        self.connect("map-event", self._on_window_mapped)
 
         self.uri = uri
         self.session = SpiceClientGLib.Session.new()
@@ -87,7 +89,27 @@ class VMDisplayWindow(Gtk.Window):
         display.connect("key-release-event", self._on_display_key_release)
 
         self.display_box.show_all()
+        GLib.idle_add(self._focus_display, "display-installed")
         self.status("Display ready.")
+
+    def _focus_display(self, reason: str = "") -> bool:
+        if self.display is not None:
+            debug(f"focus display reason={reason}")
+            try:
+                self.display.grab_focus()
+            except Exception as exc:
+                debug(f"focus display failed: {exc!r}")
+        return False
+
+    def _on_window_focus_in(self, *_args) -> bool:
+        debug("window focus-in")
+        GLib.idle_add(self._focus_display, "window-focus-in")
+        return False
+
+    def _on_window_mapped(self, *_args) -> bool:
+        debug("window mapped")
+        GLib.idle_add(self._focus_display, "window-mapped")
+        return False
 
     def _on_channel_new(self, _session, channel) -> None:
         channel_id = channel.get_property("channel-id")
